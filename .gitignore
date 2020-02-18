@@ -1,0 +1,5 @@
+/outputs/*
+/test/*
+/model/*
+!/b_boxes.pkl
+.DS_Store/*

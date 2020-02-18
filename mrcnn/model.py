@@ -49,7 +49,7 @@ def log(text, array=None):
             array.min() if array.size else "",
             array.max() if array.size else "",
             array.dtype))
-    print(text)
+    # print(text)
 
 
 class BatchNorm(KL.BatchNormalization):
@@ -2263,7 +2263,7 @@ class MaskRCNN():
         some layers from loading.
         exclude: list of layer names to exclude
         """
-        import h5py
+        import h5py, pprint
         # Conditional import to support versions of Keras before 2.2
         # TODO: remove in about 6 months (end of 2018)
         try:
@@ -2287,7 +2287,6 @@ class MaskRCNN():
         layers = keras_model.inner_model.layers if hasattr(keras_model, "inner_model")\
             else keras_model.layers
 
-        # Exclude some layers
         if exclude:
             layers = filter(lambda l: l.name not in exclude, layers)
 
@@ -2700,6 +2699,13 @@ class MaskRCNN():
         # Run object detection
         detections, _, _, mrcnn_orientation, mrcnn_mask, _, _, _ =\
             self.keras_model.predict([molded_images, image_metas, anchors], verbose=0)
+
+        feature = (self.run_graph(molded_images,[("feature",self.keras_model.get_layer(name="roi_align_mask").output)]))
+        # print(type(feature["feature"]),np.shape(feature["feature"]))
+        # print(self.keras_model.get_layer(name="roi_align_mask").output.eval())
+
+
+
         # Process detections
         results = []
         for i, image in enumerate(images):
@@ -2712,7 +2718,8 @@ class MaskRCNN():
                 "class_ids": final_class_ids,
                 "scores": final_scores,
                 "masks": final_masks,
-                "orientations": final_orientations
+                "orientations": final_orientations,
+                "deep_feature": feature["feature"]
             })
         return results
 

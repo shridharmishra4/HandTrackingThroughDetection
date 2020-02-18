@@ -96,7 +96,7 @@ class Contextual_Attention(KL.Layer):
         self.mat_mul_1 = KL.Dot(axes=2, name=self.base_name+'mat_mul_1')
         self.mat_mul_1.build([(input_shape[0], self.dim1*self.dim2, self.intermediate_dim), (input_shape[0], self.dim1*self.dim2, self.intermediate_dim)])
 
-        self.mat_mul_2 = KL.Dot(axes=[2, 1], name=self.base_name+'mat_mul_2')
+        self.mat_mul_2 = KL.Dot(axes=[2,1], name=self.base_name+'mat_mul_2')
         self.mat_mul_2.build([(input_shape[0], self.dim1*self.dim2, self.dim1*self.dim2), (input_shape[0], self.dim1*self.dim2, self.intermediate_dim)])
 
         
@@ -128,7 +128,9 @@ class Contextual_Attention(KL.Layer):
         
         phi = self.conv_phi(ip)
         phi = K.reshape(phi, (batch_size, self.dim1*self.dim2, self.intermediate_dim))
-        
+
+        print("SHape of theta = {} Shape of fi {}".format(theta.shape,phi.shape))
+
         f = self.mat_mul_1([theta, phi])
         f = keras.activations.softmax(f, axis=-1)
 
@@ -151,6 +153,7 @@ class Contextual_Attention(KL.Layer):
         g = K.reshape(g, (batch_size, self.dim1*self.dim2, self.intermediate_dim))
 
         f = f + P
+        print("SHape of f = {} Shape of g {}".format(f.shape,g.shape))
         y = self.mat_mul_2([f, g])
         y = K.reshape(y, (batch_size, dim1, dim2, self.intermediate_dim))
         y = self.conv_y(y)

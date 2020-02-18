@@ -13,12 +13,13 @@ import random
 
 import pickle
 
-
 from keras import backend as K
 
 from pprint import pprint
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "10, 14"  # Or 2, 3, etc. other than 0
+os.environ["CUDA_VISIBLE_DEVICES"] = "2,14"  # Or 2, 3, etc. other than 0
+
+
 #
 # # On CPU/GPU placement
 # config = tf.compat.v1.ConfigProto(allow_soft_placement=True, log_device_placement=True)
@@ -27,71 +28,69 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "10, 14"  # Or 2, 3, etc. other than 0
 
 
 def color_white(image, mask, angle):
-
     h, w, _ = image.shape
     alpha = 0.5
     color = [0, 255, 0]
     color_mask = np.zeros((h, w, 3))
     color_mask[:, :, :] = color
-    color_mask = image * (1-alpha) + alpha * color_mask
+    color_mask = image * (1 - alpha) + alpha * color_mask
 
     if mask.shape[-1] > 0:
         one_mask = (np.sum(mask, -1, keepdims=True) >= 1)
         colored = np.where(one_mask, color_mask, image).astype(np.uint8)
-        
+
     else:
         gray = skimage.color.gray2rgb(skimage.color.rgb2gray(image)) * 255
         colored = gray.astype(np.uint8)
 
     _, _, num = mask.shape
     centroids = []
-    
+
     for i in range(num):
-        yy, xx = np.where(mask[:,:,i])
+        yy, xx = np.where(mask[:, :, i])
         dw = max(xx) - min(xx)
         dh = max(yy) - min(yy)
-        dr = np.sqrt(dw**2 + dh**2)
+        dr = np.sqrt(dw ** 2 + dh ** 2)
         xc = int(np.mean(xx))
         yc = int(np.mean(yy))
         # print((yc,xc))
         # centroids.append([(yc,xc)])
-        xe = int(xc + dr/2 * math.cos(angle[i]))
-        ye = int(yc + dr/2 * math.sin(angle[i]))
-        colored = cv2.line(colored, (xc, yc), (xe, ye), color=[255,0,0], thickness=2)
-        colored[yc-1:yc+1,xc-1:xc+1,:] = [255, 255, 255]
-        xe_a1 = int(xe - 5*math.cos(angle[i] + math.pi/6))
-        ye_a1 = int(ye - 5*math.sin(angle[i] + math.pi/6))
-        xe_a2 = int(xe - 5*math.cos(angle[i] - math.pi/6))
-        ye_a2 = int(ye - 5*math.sin(angle[i] - math.pi/6))
+        xe = int(xc + dr / 2 * math.cos(angle[i]))
+        ye = int(yc + dr / 2 * math.sin(angle[i]))
+        colored = cv2.line(colored, (xc, yc), (xe, ye), color=[255, 0, 0], thickness=2)
+        colored[yc - 1:yc + 1, xc - 1:xc + 1, :] = [255, 255, 255]
+        xe_a1 = int(xe - 5 * math.cos(angle[i] + math.pi / 6))
+        ye_a1 = int(ye - 5 * math.sin(angle[i] + math.pi / 6))
+        xe_a2 = int(xe - 5 * math.cos(angle[i] - math.pi / 6))
+        ye_a2 = int(ye - 5 * math.sin(angle[i] - math.pi / 6))
 
-        colored = cv2.line(colored, (xe, ye), (xe_a1,ye_a1), color=[255,0,0], thickness=2)
-        colored = cv2.line(colored, (xe, ye), (xe_a2,ye_a2), color=[255,0,0], thickness=2)
+        colored = cv2.line(colored, (xe, ye), (xe_a1, ye_a1), color=[255, 0, 0], thickness=2)
+        colored = cv2.line(colored, (xe, ye), (xe_a2, ye_a2), color=[255, 0, 0], thickness=2)
 
     return colored, centroids
 
-def load_model_custom(config):
 
+def load_model_custom(config):
     model = modellib.MaskRCNN(mode="inference", config=config, model_dir='./model')
     model.load_weights('./model/trained_weights.h5', by_name=True)
     # print(model.summary())
 
     return model
 
+
 class handConfig(Config):
-    
     NAME = "hand"
-    IMAGES_PER_GPU = 1
-    NUM_CLASSES = 1 + 1  
+    IMAGES_PER_GPU = 4
+    NUM_CLASSES = 1 + 1
     STEPS_PER_EPOCH = 1000
     DETECTION_MIN_CONFIDENCE = 0.9
-    tf.global_variables_initializer()
-
+    # tf.global_variables_initializer()
 
 
 class InferenceConfig(handConfig):
-    
     GPU_COUNT = 1
-    IMAGES_PER_GPU = 1
+    IMAGES_PER_GPU = 4
+
 
 # def random_colors(N, bright=True):
 #
@@ -134,8 +133,7 @@ class InferenceConfig(handConfig):
 
 
 def detect(model, img_dir):
-    
-    f = open("results.txt" , "w")
+    f = open("results.txt", "w")
 
     for file_name in os.listdir(img_dir):
         img_path = img_dir + file_name
@@ -154,16 +152,16 @@ def detect(model, img_dir):
         save_img = color_white(save_img, pred_masks, pred_orientations)
         skimage.io.imsave('./outputs/result_' + os.path.basename(img_path), save_img)
         print("output saved\n")
-    
+
     f.close()
 
 
 def process_frame(model, img):
     # img = img_origin.copy()
-    result = model.detect([img], verbose=0)[0]
+    # for item in img:
+    result = model.detect(img, verbose=0)[0]
     # feature = (model.run_graph(molded_images, [("feature", self.keras_model.get_layer(name="roi_align_mask").output)]))
     # print(type(feature["feature"]), np.shape(feature["feature"]))
-
 
     pred_masks = result["masks"]
     pred_orientations = result["orientations"]
@@ -176,27 +174,31 @@ def process_frame(model, img):
     # print(pred_bbox)
     #         line = file_name + ',' + str(box[0]) + ',' + str(box[1]) + ',' + str(box[2]) + ',' + str(box[3]) + '\n'
     #         f.write(line)
-    save_img = img
-    save_img , centroids = color_white(save_img, pred_masks, pred_orientations)
-    # global_centroids.append(centroids)
-    # for frames in global_centroids:
-    #     for centroids in frames:
-    #         try:
-    #             print(centroids)
-    #             save_img = cv2.circle(save_img, (centroids[0][0],centroids[1][0]), radius=3, color=(255,0,0), thickness=-1)
-    #         except:
-    #             pass
-    for box in pred_bbox:
-        save_img = cv2.rectangle(save_img,(box[1],box[0]),(box[3],box[2]),(0,0,255))
+    return_stuff = []
+    for items in img:
+        save_img = items
+        save_img, centroids = color_white(save_img, pred_masks, pred_orientations)
+        # global_centroids.append(centroids)
+        # for frames in global_centroids:
+        #     for centroids in frames:
+        #         try:
+        #             print(centroids)
+        #             save_img = cv2.circle(save_img, (centroids[0][0],centroids[1][0]), radius=3, color=(255,0,0), thickness=-1)
+        #         except:
+        #             pass
+        for box in pred_bbox:
+            save_img = cv2.rectangle(save_img, (box[1], box[0]), (box[3], box[2]), (0, 0, 255))
 
-    return save_img, pred_bbox,deep_feature
+        return save_img, pred_bbox, deep_feature
+
+
 def divide_chunks(array, n):
-
     # looping till length l
     for i in range(0, len(array), n):
         yield array[i:i + n]
 
-def detect_vids(model,img_dir):
+
+def detect_vids(model, img_dir):
     # model = load_model_custom(InferenceConfig())
     cap = cv2.VideoCapture(img_dir)
     # print(cap)
@@ -206,7 +208,7 @@ def detect_vids(model,img_dir):
     fps = cap.get(cv2.CAP_PROP_FPS)
     # print(out_height,out_width,fps)
 
-    save_file = f'./outputs/{img_dir.strip().split("/")[-1]}'
+    save_file = f'./test/{img_dir.strip().split("/")[-1]}'
     # print('Enter object name: hands (left, right), duplo (yellow, white, black, red, orange, blue)')
     text = "hand_multi_gpu"
     mp4_file = save_file.split('.mp4')[0] + '_' + text + '.mp4'
@@ -226,10 +228,9 @@ def detect_vids(model,img_dir):
     start_track = True
     list_bboxes = []
     print(len(ims))
-
-
+    chunks  = divide_chunks(ims,4)
     deep_feature_all = []
-    for im in tqdm(ims[:5]):
+    for im in tqdm(chunks):
         # print(f)
         # im = ims[f]
         # im = cv2.resize(im, (512, 360))
@@ -237,7 +238,7 @@ def detect_vids(model,img_dir):
         if start_track:  # tracking
             deep_feature = None
 
-            im, pred_bbox,deep_feature = process_frame(model, im)
+            im, pred_bbox, deep_feature = process_frame(model, im)
 
             # exit(0)
             # feature = intermediate_output = intermediate_layer_model.predict(im)
@@ -260,19 +261,17 @@ def detect_vids(model,img_dir):
             #     pickle.dump(deep_feature_all, file_handle)
             # print(list_bboxes)
 
-
-
         out.write(im)
 
     out.release()
-    with open('parrot.pkl', 'wb') as file_handle:
+    with open('./test/parrot.pkl', 'wb') as file_handle:
         pickle.dump(deep_feature_all, file_handle)
 
-    with open('b_boxes.pkl', 'wb') as file_handle_2:
+    with open('./test/b_boxes.pkl', 'wb') as file_handle_2:
         pickle.dump(list_bboxes, file_handle_2)
 
-if __name__ == '__main__':
 
+if __name__ == '__main__':
     # import argparse
     # parser = argparse.ArgumentParser(description="Hand-Detector")
     # parser.add_argument("--image_dir", metavar="/path/to/directory/", help="Path to the image directory")
@@ -282,4 +281,4 @@ if __name__ == '__main__':
     # detect(model,"../test_img/")
     # intermediate_layer_model = Model(inputs=model.input,
     #                                  outputs=model.get_layer("layer_name").output)
-    detect_vids(model ,"../data_videos/short.mp4")
+    detect_vids(model, "../data_videos/short.mp4")
