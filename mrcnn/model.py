@@ -674,7 +674,7 @@ class DetectionTargetLayer(KE.Layer):
         # Slice the batch and run a graph for each slice
         # TODO: Rename target_bbox to target_deltas for clarity
         names = ["rois", "target_class_ids", "target_bbox", "target_mask", "target_orientation"]
-        # print("DETECTION LAYER", gt_boxes, gt_class_ids, gt_orientations)
+        print("DETECTION LAYER", gt_boxes, gt_class_ids, gt_orientations)
         outputs = utils.batch_slice(
             [proposals, gt_class_ids, gt_boxes, gt_masks, gt_orientations],
             lambda w, x, y, z, o: detection_targets_graph(
@@ -704,7 +704,6 @@ class DetectionTargetLayer(KE.Layer):
 def refine_detections_graph(rois, probs, deltas, window, orientations, config):
     """Refine classified proposals and filter overlaps and return final
     detections.
-
     Inputs:
         rois: [N, (y1, x1, y2, x2)] in normalized coordinates
         probs: [N, num_classes]. Class probabilities.
@@ -713,7 +712,6 @@ def refine_detections_graph(rois, probs, deltas, window, orientations, config):
         window: (y1, x1, y2, x2) in image coordinates. The part of the image
             that contains the image excluding the padding.
         mrcnn_orientation: [N, num_classes, (angle)] in image orientation.
-
     Returns detections shaped: [N, (y1, x1, y2, x2, class_id, score)] where
         coordinates are normalized.
     """
@@ -745,7 +743,7 @@ def refine_detections_graph(rois, probs, deltas, window, orientations, config):
     # 1. Prepare variables
     pre_nms_class_ids = tf.gather(class_ids, keep)
     pre_nms_scores = tf.gather(class_scores, keep)
-    pre_nms_rois = tf.gather(refined_rois,   keep)
+    pre_nms_rois = tf.gather(refined_rois, keep)
     # pre_nms_orientations = tf.gather(orientations, keep)
     unique_pre_nms_class_ids = tf.unique(pre_nms_class_ids)[0]
 
@@ -755,10 +753,10 @@ def refine_detections_graph(rois, probs, deltas, window, orientations, config):
         ixs = tf.where(tf.equal(pre_nms_class_ids, class_id))[:, 0]
         # Apply NMS
         class_keep = tf.image.non_max_suppression(
-                tf.gather(pre_nms_rois, ixs),
-                tf.gather(pre_nms_scores, ixs),
-                max_output_size=config.DETECTION_MAX_INSTANCES,
-                iou_threshold=config.DETECTION_NMS_THRESHOLD)
+            tf.gather(pre_nms_rois, ixs),
+            tf.gather(pre_nms_scores, ixs),
+            max_output_size=config.DETECTION_MAX_INSTANCES,
+            iou_threshold=config.DETECTION_NMS_THRESHOLD)
         # Map indices
         class_keep = tf.gather(keep, tf.gather(ixs, class_keep))
         # Pad with -1 so returned tensors have the same shape
@@ -794,7 +792,7 @@ def refine_detections_graph(rois, probs, deltas, window, orientations, config):
         tf.to_float(tf.gather(class_ids, keep))[..., tf.newaxis],
         tf.gather(class_scores, keep)[..., tf.newaxis],
         tf.gather(orientations, keep)
-        ], axis=1)
+    ], axis=1)
     # Pad with zeros if detections < DETECTION_MAX_INSTANCES
     gap = config.DETECTION_MAX_INSTANCES - tf.shape(detections)[0]
     detections = tf.pad(detections, [(0, gap), (0, 0)], "CONSTANT")
@@ -804,7 +802,6 @@ def refine_detections_graph(rois, probs, deltas, window, orientations, config):
 class DetectionLayer(KE.Layer):
     """Takes classified proposal boxes and their bounding box deltas and
     returns the final detection boxes.
-
     Returns:
     [batch, num_detections, (y1, x1, y2, x2, class_id, class_score, x, y)] where
     coordinates are normalized.
@@ -828,7 +825,7 @@ class DetectionLayer(KE.Layer):
         m = parse_image_meta_graph(image_meta)
         image_shape = m['image_shape'][0]
         window = norm_boxes_graph(m['window'], image_shape[:2])
-        
+
         # Run detection refinement graph on each item in the batch
         detections_batch = utils.batch_slice(
             [rois, mrcnn_class, mrcnn_bbox, window, mrcnn_orientation],
@@ -2653,7 +2650,7 @@ class MaskRCNN():
             full_masks.append(full_mask)
         full_masks = np.stack(full_masks, axis=-1)\
             if full_masks else np.empty(original_image_shape[:2] + (0,))
-
+        # print("From unmold",len(boxes))
         return boxes, class_ids, scores, full_masks, orientations
 
     def detect(self, images, verbose=0):
@@ -2697,29 +2694,47 @@ class MaskRCNN():
             log("image_metas", image_metas)
             log("anchors", anchors)
         # Run object detection
-        detections, _, _, mrcnn_orientation, mrcnn_mask, _, _, _ =\
+        detections, _, mrcnn_bbox, mrcnn_orientation, mrcnn_mask, rpn_rois, _, rpn_bbox =\
             self.keras_model.predict([molded_images, image_metas, anchors], verbose=0)
 
-        feature = (self.run_graph(molded_images,[("feature",self.keras_model.get_layer(name="roi_align_mask").output)]))
+        # print(self.keras_model.predict([molded_images, image_metas, anchors], verbose=0))
+        # print((self.run_graph(molded_images,[("keep1",self.keras_model.get_layer(name="keep1").output)])))
+        # print((self.run_graph(molded_images,[("class_scores2",self.keras_model.get_layer(name="class_scores2").output)])))
+        # feature = (self.run_graph(molded_images,[("feature",self.keras_model.get_layer(name="roi_align_mask").output)]))
+        # apply_box_deltas_out = (self.run_graph(molded_images,[("apply_box_deltas_out",self.keras_model.get_layer(name="apply_box_deltas_out").output)]))
+
+
+        # b_box_proposals = (self.run_graph(molded_images,[("feature",self.keras_model.get_layer(name="mrcnn_detection").output)]))
+        # detection_boxes = KL.Lambda(lambda x: x[..., :4])(b_box_proposals)
+        # feature = None
         # print(type(feature["feature"]),np.shape(feature["feature"]))
         # print(self.keras_model.get_layer(name="roi_align_mask").output.eval())
 
 
-
+        # print(test)
         # Process detections
         results = []
+        # print(len(detections))
+        for i, image in enumerate(images):
+            denorm_coordinates = denorm_boxes_graph(rpn_rois[i],(image.shape[0],image.shape[1]))
+
+        denorm_coordinates = (tf.keras.backend.get_value(denorm_coordinates))
+        # print(denorm_coordinates)
+        
         for i, image in enumerate(images):
             final_rois, final_class_ids, final_scores, final_masks, final_orientations =\
                 self.unmold_detections(detections[i], mrcnn_mask[i],
                                        image.shape, molded_images[i].shape,
                                        windows[i])
+
             results.append({
                 "rois": final_rois,
                 "class_ids": final_class_ids,
                 "scores": final_scores,
                 "masks": final_masks,
                 "orientations": final_orientations,
-                "deep_feature": feature["feature"]
+                # "deep_feature": feature["feature"],
+                "ROI_BBOX": denorm_coordinates
             })
         return results
 
