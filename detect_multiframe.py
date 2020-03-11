@@ -239,21 +239,6 @@ def detect_vids(model, img_dir):
             deep_feature = None
 
             im, pred_bbox, deep_feature = process_frame(model, im)
-
-            # exit(0)
-            # feature = intermediate_output = intermediate_layer_model.predict(im)
-
-            # state = siamese_track(state, im, mask_enable=True, refine_enable=True, device=device)  # track
-            # location = state['ploygon'].flatten()
-            # mask = state['mask'] > state['p'].seg_thr
-            #
-            # x1, y1, x2, y2 = int(min(location[::2])), int(min(location[1::2])), int(max(location[::2])), int(
-            #     max(location[1::2]))
-            # list_bboxes[f] = (x1, y1, x2, y2)
-            #
-            # im[:, :, 2] = (mask > 0) * 255 + (mask == 0) * im[:, :, 2]
-            # cv2.polylines(im, [np.int0(location).reshape((-1, 1, 2))], True, (0, 255, 0), 3)
-            # skimage.io.imsave('./outputs/result_' + str(f) +".png", im)
             list_bboxes.append(pred_bbox)
             deep_feature_all.append(deep_feature)
             f += 1
@@ -264,8 +249,8 @@ def detect_vids(model, img_dir):
         out.write(im)
 
     out.release()
-    with open('./test/parrot.pkl', 'wb') as file_handle:
-        pickle.dump(deep_feature_all, file_handle)
+    # with open('./test/features.pkl', 'wb') as file_handle:
+    #     pickle.dump(deep_feature_all, file_handle)
 
     with open('./test/b_boxes.pkl', 'wb') as file_handle_2:
         pickle.dump(list_bboxes, file_handle_2)

@@ -10,6 +10,7 @@ from mrcnn.config import Config
 import tensorflow as tf
 import colorsys
 import random
+import scipy.io
 
 import pickle
 
@@ -18,11 +19,11 @@ from keras import backend as K
 
 from pprint import pprint
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "10, 14"  # Or 2, 3, etc. other than 0
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"  # Or 2, 3, etc. other than 0
 #
 # # On CPU/GPU placement
-# config = tf.compat.v1.ConfigProto(allow_soft_placement=True, log_device_placement=True)
-# config.gpu_options.allow_growth = True
+config = tf.compat.v1.ConfigProto(allow_soft_placement=True, log_device_placement=True)
+config.gpu_options.allow_growth = True
 # sess = tf.compat.v1.Session(config=config)
 
 
@@ -83,8 +84,11 @@ class handConfig(Config):
     IMAGES_PER_GPU = 1
     NUM_CLASSES = 1 + 1  
     STEPS_PER_EPOCH = 1000
-    DETECTION_MIN_CONFIDENCE = 0.9
-    tf.global_variables_initializer()
+    # DETECTION_MIN_CONFIDENCE = 0.1
+    # RPN_NMS_THRESHOLD = 0.1
+
+    # DETECTION_NMS_THRESHOLD = 0.1
+    # tf.global_variables_initializer()
 
 
 
@@ -92,6 +96,9 @@ class InferenceConfig(handConfig):
     
     GPU_COUNT = 1
     IMAGES_PER_GPU = 1
+    DETECTION_MIN_CONFIDENCE = 0.0001
+    RPN_NMS_THRESHOLD = 0.0001
+    # DETECTION_NMS_THRESHOLD = 0.1
 
 # def random_colors(N, bright=True):
 #
@@ -137,7 +144,7 @@ def detect(model, img_dir):
     
     f = open("results.txt" , "w")
 
-    for file_name in os.listdir(img_dir):
+    for file_name in os.listdir(img_dir)[:2]:
         img_path = img_dir + file_name
         print("Processing image: ", file_name)
         img_origin = skimage.io.imread(img_path)
@@ -152,7 +159,7 @@ def detect(model, img_dir):
             f.write(line)
         save_img = img_origin
         save_img = color_white(save_img, pred_masks, pred_orientations)
-        skimage.io.imsave('./outputs/result_' + os.path.basename(img_path), save_img)
+        scipy.io.imwrite('./outputs/result_' + os.path.basename(img_path), save_img)
         print("output saved\n")
     
     f.close()
@@ -168,11 +175,13 @@ def process_frame(model, img):
     pred_masks = result["masks"]
     pred_orientations = result["orientations"]
     pred_bbox = result["rois"]
-    deep_feature = result["deep_feature"]
+    # deep_feature = result["deep_feature"]
+    deep_feature = None
     scores = result["scores"]
-
-    # print(pred_bbox)
-    print(np.shape(deep_feature))
+    b_box = result["ROI_BBOX"]
+    print(len(pred_bbox))
+    # pprint(pred_bbox,scores)
+    # print(np.shape(deep_feature))
     # print(pred_bbox)
     #         line = file_name + ',' + str(box[0]) + ',' + str(box[1]) + ',' + str(box[2]) + ',' + str(box[3]) + '\n'
     #         f.write(line)
@@ -186,8 +195,12 @@ def process_frame(model, img):
     #             save_img = cv2.circle(save_img, (centroids[0][0],centroids[1][0]), radius=3, color=(255,0,0), thickness=-1)
     #         except:
     #             pass
-    for box in pred_bbox:
-        save_img = cv2.rectangle(save_img,(box[1],box[0]),(box[3],box[2]),(0,0,255))
+    for bbox in b_box:
+        centerCoord = (bbox[1] + int((bbox[3] - bbox[1]) / 2), bbox[0] + int((bbox[2] - bbox[0]) / 2))
+        # print(centerCoord)
+        # save_img = cv2.circle(save_img, centerCoord, 4, (255, 0, 255), -1)
+        save_img = cv2.rectangle(save_img, (bbox[1], bbox[0]), (bbox[3], bbox[2]), (0, 0, 255))
+        # save_img = cv2.rectangle(save_img,(box[1],box[0]),(box[3],box[2]),(0,0,255))
 
     return save_img, pred_bbox,deep_feature
 def divide_chunks(array, n):
@@ -218,6 +231,8 @@ def detect_vids(model,img_dir):
     while True:
         ret, frame = cap.read()
 
+
+
         if not ret:
             break
 
@@ -229,7 +244,7 @@ def detect_vids(model,img_dir):
 
 
     deep_feature_all = []
-    for im in tqdm(ims[:5]):
+    for im in tqdm(ims[:200]):
         # print(f)
         # im = ims[f]
         # im = cv2.resize(im, (512, 360))
@@ -252,7 +267,7 @@ def detect_vids(model,img_dir):
             #
             # im[:, :, 2] = (mask > 0) * 255 + (mask == 0) * im[:, :, 2]
             # cv2.polylines(im, [np.int0(location).reshape((-1, 1, 2))], True, (0, 255, 0), 3)
-            # skimage.io.imsave('./outputs/result_' + str(f) +".png", im)
+            cv2.imwrite('./outputs/result_' + str(f) +".png", cv2.cvtColor(im, cv2.COLOR_RGB2BGR) )
             list_bboxes.append(pred_bbox)
             deep_feature_all.append(deep_feature)
             f += 1
@@ -265,11 +280,11 @@ def detect_vids(model,img_dir):
         out.write(im)
 
     out.release()
-    with open('parrot.pkl', 'wb') as file_handle:
-        pickle.dump(deep_feature_all, file_handle)
-
-    with open('b_boxes.pkl', 'wb') as file_handle_2:
-        pickle.dump(list_bboxes, file_handle_2)
+    # with open('parrot.pkl', 'wb') as file_handle:
+    #     pickle.dump(deep_feature_all, file_handle)
+    #
+    # with open('b_boxes.pkl', 'wb') as file_handle_2:
+    #     pickle.dump(list_bboxes, file_handle_2)
 
 if __name__ == '__main__':
 
@@ -279,7 +294,7 @@ if __name__ == '__main__':
     # args = parser.parse_args()
     # img_dir = args.image_dir
     model = load_model_custom(InferenceConfig())
-    # detect(model,"../test_img/")
+    # detect(model,"./frame_output/")
     # intermediate_layer_model = Model(inputs=model.input,
     #                                  outputs=model.get_layer("layer_name").output)
     detect_vids(model ,"../data_videos/short.mp4")

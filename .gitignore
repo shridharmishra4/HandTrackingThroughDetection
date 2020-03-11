@@ -3,3 +3,4 @@
 /model/*
 !/b_boxes.pkl
 .DS_Store/*
+!/sample_data/

@@ -6,16 +6,17 @@ from scipy import sparse
 
 
 
-objects = []
-with (open("./b_boxes.pkl", "rb")) as openfile:
-    while True:
-        try:
-            objects.append(pickle.load(openfile))
-        except EOFError:
-            break
+# objects = []
+# with (open("./b_boxes.pkl", "rb")) as openfile:
+#     while True:
+#         try:
+#             objects.append(pickle.load(openfile))
+#         except EOFError:
+#             break
+#
+# all_centroid = []
+# print(len(objects[0]))
 
-all_centroid = []
-print(len(objects[0]))
 
 
 # for frame in objects[0]:
@@ -112,6 +113,22 @@ def paint_vids(img_dir):
 #         # print(i)
 #         for bbox in (objects[0][i]):
 
+def save_frames(video):
+    import cv2
 
+    # Opens the Video file
+    cap = cv2.VideoCapture(video)
+    i = 0
+    while (cap.isOpened()):
+        ret, frame = cap.read()
+        if ret == False:
+            break
+        print(i)
 
-paint_vids("../data_videos/short.mp4")
+        cv2.imwrite('./output/frame_output/Frame' + str(i) + '.jpg', frame)
+        i += 1
+
+    cap.release()
+    cv2.destroyAllWindows()
+
+save_frames("/scratch/shri/Projects/Hand-CNN/outputs/short_tracker_sort.mp4")
